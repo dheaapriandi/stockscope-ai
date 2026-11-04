@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockScope AI - Microstock Trend & Gap Analysis Tool</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%22><text y=%2226%22 font-size=%2224%22>📈</text></svg>">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              dark: '#080d1a',
+              card: '#0f172a',
+              border: '#1e293b',
+              accent: '#2563eb',
+              accentHover: '#1d4ed8',
+              cyan: '#06b6d4',
+              teal: '#14b8a6',
+              green: '#10b981',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #080d1a;
+      color: #f1f5f9;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .tag-chip {
+      background-color: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(51, 65, 85, 0.7);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .tag-chip:hover {
+      background-color: rgba(37, 99, 235, 0.2);
+      border-color: #3b82f6;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.15); }
+      50% { box-shadow: 0 0 25px rgba(6, 182, 212, 0.35); }
+    }
+    .glow-badge {
+      animation: pulseGlow 3s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start pb-16 custom-scrollbar">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Main Container -->
+  <main class="w-full max-w-4xl px-4 sm:px-6 pt-6 flex flex-col items-center">
+
+    <!-- Top Navigation Header -->
+    <header class="w-full flex items-center justify-between mb-4">
+      <!-- Back Button -->
+      <button onclick="resetViews()" class="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-700 transition" title="Back to home">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Center Logo & Badge -->
+      <div class="flex flex-col items-center gap-1.5">
+        <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border border-teal-500/40 bg-teal-950/30 text-teal-300 text-[11px] font-semibold tracking-wider uppercase glow-badge">
+          <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping"></span>
+          Microstock Tool
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+          StockScope AI
+        </h1>
+      </div>
+
+      <!-- Right Action Buttons -->
+      <div class="flex items-center gap-2">
+        <!-- Share Button -->
+        <button onclick="shareApp()" class="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-700 transition" title="Share & Copy Link">
+          <i data-lucide="share-2" class="w-4 h-4"></i>
+        </button>
+        <!-- Cart / Collection Button -->
+        <button onclick="toggleCartDrawer()" class="relative w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-700 transition" title="Saved Collection">
+          <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+          <span id="cart-badge" class="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-emerald-500 text-slate-950 font-bold text-xs rounded-full flex items-center justify-center border-2 border-[#080d1a]">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Switch: Discovery Dashboard vs Gap Analysis Table -->
+    <div class="inline-flex p-1 rounded-xl bg-slate-900/80 border border-slate-800/80 mb-6">
+      <button id="nav-discovery" onclick="switchMainView('discovery')" class="px-5 py-2 rounded-lg text-sm font-semibold transition bg-slate-800 text-white shadow-sm border border-slate-700/60 flex items-center gap-2">
+        <i data-lucide="compass" class="w-4 h-4 text-blue-400"></i>
+        Discovery Dashboard
+      </button>
+      <button id="nav-gap" onclick="switchMainView('gap')" class="px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <i data-lucide="bar-chart-3" class="w-4 h-4 text-teal-400"></i>
+        Gap Analysis Table
+      </button>
+    </div>
+
+    <!-- VIEW 1: DISCOVERY DASHBOARD -->
+    <section id="view-discovery" class="w-full flex flex-col gap-6">
+
+      <!-- Main Filter Card (Matches image exactly) -->
+      <div class="w-full glass-card rounded-2xl p-4 sm:p-6 border border-slate-800/80 shadow-2xl relative overflow-hidden">
+        
+        <!-- Subtle Top Glow -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1 bg-gradient-to-r from-transparent via-blue-500/30 to-transparent"></div>
+
+        <!-- Asset Type Tabs -->
+        <div class="grid grid-cols-4 gap-2 mb-5">
+          <button onclick="setAssetType('footage')" id="tab-footage" class="py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+            Footage
+          </button>
+          <button onclick="setAssetType('raster')" id="tab-raster" class="py-2.5 px-3 rounded-xl text-sm font-medium transition text-center text-slate-400 hover:text-white hover:bg-slate-800/60">
+            Raster
+          </button>
+          <button onclick="setAssetType('vector')" id="tab-vector" class="py-2.5 px-3 rounded-xl text-sm font-medium transition text-center text-slate-400 hover:text-white hover:bg-slate-800/60">
+            Vector
+          </button>
+          <button onclick="setAssetType('png')" id="tab-png" class="py-2.5 px-3 rounded-xl text-sm font-medium transition text-center text-slate-400 hover:text-white hover:bg-slate-800/60">
+            PNG
+          </button>
+        </div>
+
+        <!-- Search Bar with Inspire Me Button -->
+        <div class="flex flex-col sm:flex-row gap-2.5 mb-5">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+            <input 
+              type="text" 
+              id="search-topic" 
+              placeholder="Search topic for Footage (or leave empty)" 
+              class="w-full bg-slate-900/90 border border-slate-700/70 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+              onkeydown="if(event.key === 'Enter') discoverCurrentTopic()"
+            >
+          </div>
+          <button onclick="inspireMe()" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-sm font-semibold text-white transition shrink-0 active:scale-95">
+            <span class="text-base">🎲</span>
+            <span>Inspire Me</span>
+          </button>
+        </div>
+
+        <!-- Dropdowns: Style, Subject Mode, Timeframe -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5">
+          <!-- Style Dropdown -->
+          <div>
+            <label id="label-style" class="block text-xs font-medium text-slate-400 mb-1.5">Footage Style</label>
+            <div class="relative">
+              <select id="select-style" class="w-full appearance-none bg-slate-900/90 border border-slate-700/70 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition">
+                <!-- Dynamically filled by JS -->
+              </select>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- Subject Mode Dropdown -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Subject Mode</label>
+            <div class="relative">
+              <select id="select-subject" class="w-full appearance-none bg-slate-900/90 border border-slate-700/70 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition">
+                <option value="With People">With People</option>
+                <option value="No People / Objects">No People / Objects</option>
+                <option value="Architecture & Cityscape">Architecture & Cityscape</option>
+                <option value="Nature & Landscapes">Nature & Landscapes</option>
+                <option value="Technology & Abstract">Technology & Abstract</option>
+                <option value="Animals & Wildlife">Animals & Wildlife</option>
+              </select>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- Timeframe Dropdown -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Timeframe</label>
+            <div class="relative">
+              <select id="select-timeframe" class="w-full appearance-none bg-slate-900/90 border border-slate-700/70 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition">
+                <option value="Upcoming (2 Months)" selected>Upcoming (2 Months)</option>
+                <option value="Trending Now (30 Days)">Trending Now (30 Days)</option>
+                <option value="Real-time Spike (7 Days)">Real-time Spike (7 Days)</option>
+                <option value="Next Season (Q1-Q4)">Next Season (Q1-Q4)</option>
+                <option value="Evergreen High-Demand">Evergreen High-Demand</option>
+              </select>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Action CTA Button -->
+        <button id="btn-discover" onclick="discoverCurrentTopic()" class="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-semibold text-sm sm:text-base tracking-wide transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          <span id="btn-discover-text">Discover Footage</span>
+        </button>
+
+        <!-- Divider line -->
+        <div class="w-full border-t border-slate-800/80 my-5"></div>
+
+        <!-- Brainstorming Ideas Section -->
+        <div class="w-full flex flex-col gap-3.5">
+          <div class="flex items-center justify-between">
+            <span id="heading-brainstorm" class="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              BRAINSTORMING IDEAS FOR FOOTAGE:
+            </span>
+            <button onclick="refreshBrainstormIdeas()" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+              Refresh
+            </button>
+          </div>
+
+          <!-- Category Tags Container -->
+          <div id="brainstorm-categories" class="flex flex-col gap-3 text-xs">
+            <!-- Dynamically populated by renderBrainstormIdeas() -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- DISCOVERY RESULT PANEL (Shown after user discovers or clicks a tag) -->
+      <div id="result-panel" class="hidden w-full flex flex-col gap-6 transition-all duration-300">
+        
+        <!-- Result Header & Metrics Banner -->
+        <div class="w-full glass-card rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-900/40 border border-blue-600/30 text-blue-300 text-xs font-semibold mb-1.5">
+                <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                <span id="res-badge-type">Footage Trend Analysis</span>
+              </div>
+              <h2 id="res-topic" class="text-xl sm:text-2xl font-bold text-white tracking-tight">Sustainable Energy 2026</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="saveCurrentResultToCart()" class="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold text-xs transition flex items-center gap-1.5">
+                <i data-lucide="bookmark-plus" class="w-4 h-4"></i>
+                <span>Save to Collection</span>
+              </button>
+              <button onclick="exportCurrentResultCSV()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Key Metrics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+            <!-- Opportunity Gap Score -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80">
+              <span class="text-[11px] text-slate-400 font-medium block mb-1">Opportunity Gap Score</span>
+              <div class="flex items-baseline gap-1.5">
+                <span id="res-gap-score" class="text-2xl font-extrabold text-emerald-400">96</span>
+                <span class="text-xs text-slate-400 font-normal">/ 100</span>
+              </div>
+              <span id="res-gap-tier" class="text-[10px] text-emerald-400 font-medium">Very High Demand</span>
+            </div>
+
+            <!-- Search Demand Volume -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80">
+              <span class="text-[11px] text-slate-400 font-medium block mb-1">Estimated Searches</span>
+              <div id="res-search-volume" class="text-xl font-bold text-white">84,500 / mo</div>
+              <span class="text-[10px] text-blue-400 font-medium">+138% YoY Growth</span>
+            </div>
+
+            <!-- Supply Saturation -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80">
+              <span class="text-[11px] text-slate-400 font-medium block mb-1">Market Saturation</span>
+              <div id="res-saturation" class="text-xl font-bold text-cyan-400">14% (Low)</div>
+              <span class="text-[10px] text-slate-400">Undersupplied niche</span>
+            </div>
+
+            <!-- Commercial Potential -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80">
+              <span class="text-[11px] text-slate-400 font-medium block mb-1">Commercial Tier</span>
+              <div id="res-tier" class="text-xl font-bold text-amber-400">Tier S</div>
+              <span class="text-[10px] text-slate-400">Top 5% Earning Potential</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optimized Title & 50 Keywords Card -->
+        <div class="w-full glass-card rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-xl flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="tag" class="w-4 h-4 text-blue-400"></i>
+              SEO Title & Microstock Tags
+            </h3>
+            <span id="res-tag-count" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-medium">
+              48 Keywords
+            </span>
+          </div>
+
+          <!-- Commercial Title Box -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-3">
+            <div class="flex-1">
+              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">Commercial Microstock Title:</span>
+              <p id="res-title" class="text-sm font-medium text-slate-100 select-all"></p>
+            </div>
+            <button onclick="copyElementText('res-title', 'Title copied!')" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition shrink-0" title="Copy Title">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Keywords List -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-slate-400">Click any keyword to copy, or copy all at once:</span>
+              <button onclick="copyAllKeywords()" class="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition">
+                <i data-lucide="clipboard-copy" class="w-3.5 h-3.5"></i>
+                Copy All 50 Keywords
+              </button>
+            </div>
+            <div id="res-keywords-box" class="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 custom-scrollbar">
+              <!-- Dynamically populated tags -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Generative AI Prompts (Image / Video) -->
+        <div class="w-full glass-card rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-xl flex flex-col gap-4">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="cpu" class="w-4 h-4 text-purple-400"></i>
+            Generative AI Prompts (Midjourney, Imagen 3, FLUX & Video AI)
+          </h3>
+
+          <!-- Image Prompt -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-purple-300 flex items-center gap-1">
+                <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                Midjourney / FLUX / Imagen 3 Prompt:
+              </span>
+              <button onclick="copyElementText('res-prompt-img', 'Image prompt copied!')" class="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                Copy
+              </button>
+            </div>
+            <p id="res-prompt-img" class="text-xs text-slate-300 leading-relaxed font-mono select-all bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60"></p>
+          </div>
+
+          <!-- Video Prompt -->
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-blue-300 flex items-center gap-1">
+                <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                Runway Gen-3 / Luma / Sora Video Motion Prompt:
+              </span>
+              <button onclick="copyElementText('res-prompt-vid', 'Video prompt copied!')" class="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                Copy
+              </button>
+            </div>
+            <p id="res-prompt-vid" class="text-xs text-slate-300 leading-relaxed font-mono select-all bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60"></p>
+          </div>
+        </div>
+
+        <!-- Buyer Niches & Suggested Shot List -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Buyer Niches -->
+          <div class="glass-card rounded-2xl p-5 border border-slate-800 shadow-xl flex flex-col gap-3">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-emerald-400"></i>
+              Top Buyer Industries & Commercial Use
+            </h4>
+            <div id="res-buyer-list" class="flex flex-col gap-2">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Shot List / Composition Guide -->
+          <div class="glass-card rounded-2xl p-5 border border-slate-800 shadow-xl flex flex-col gap-3">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="camera" class="w-4 h-4 text-amber-400"></i>
+              Commercial Shot List & Angles
+            </h4>
+            <div id="res-shot-list" class="flex flex-col gap-2">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- VIEW 2: GAP ANALYSIS TABLE -->
+    <section id="view-gap" class="w-full hidden flex-col gap-5">
+      <div class="w-full glass-card rounded-2xl p-5 sm:p-6 border border-slate-800 shadow-2xl">
+        
+        <!-- Table Top Control Bar -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="table" class="w-5 h-5 text-teal-400"></i>
+              Microstock Market Gap Analysis
+            </h2>
+            <p class="text-xs text-slate-400">High search volume topics with undersupplied library assets across major platforms.</p>
+          </div>
+
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <!-- Filter by asset type -->
+            <select id="gap-filter-type" onchange="renderGapTable()" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+              <option value="all">All Asset Types</option>
+              <option value="Footage">Footage</option>
+              <option value="Raster">Raster</option>
+              <option value="Vector">Vector</option>
+              <option value="PNG">PNG</option>
+            </select>
+            <!-- Export Table CSV -->
+            <button onclick="exportGapTableCSV()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 font-semibold flex items-center gap-1.5 transition shrink-0">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>Export Table</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="w-full overflow-x-auto rounded-xl border border-slate-800 custom-scrollbar">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-900/90 text-slate-400 font-semibold border-b border-slate-800">
+                <th class="py-3 px-3.5">Topic / Trend</th>
+                <th class="py-3 px-3">Type</th>
+                <th class="py-3 px-3">Demand</th>
+                <th class="py-3 px-3">Supply Gap</th>
+                <th class="py-3 px-3 text-center">Score</th>
+                <th class="py-3 px-3">Commercial Niche</th>
+                <th class="py-3 px-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="gap-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Dynamically populated by renderGapTable() -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CART / SAVED COLLECTION SLIDE-OVER DRAWER -->
+  <div id="cart-drawer-backdrop" onclick="toggleCartDrawer()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden transition-opacity"></div>
+  <aside id="cart-drawer" class="fixed right-0 top-0 h-full w-full max-w-md bg-slate-900 border-l border-slate-800 z-50 shadow-2xl p-5 flex flex-col justify-between translate-x-full transition-transform duration-300 ease-in-out">
+    <div>
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="shopping-cart" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="text-base font-bold text-white">Saved Collections</h3>
+          <span id="drawer-count-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">0 items</span>
+        </div>
+        <button onclick="toggleCartDrawer()" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="cart-items-container" class="flex flex-col gap-3 max-h-[calc(100vh-220px)] overflow-y-auto pr-1 custom-scrollbar">
+        <!-- Rendered items -->
+      </div>
+    </div>
+
+    <!-- Drawer Footer Actions -->
+    <div class="pt-4 border-t border-slate-800 flex flex-col gap-2">
+      <button onclick="exportAllCartCSV()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2">
+        <i data-lucide="download" class="w-4 h-4"></i>
+        Export All to Microstock CSV (Adobe / Shutterstock)
+      </button>
+      <button onclick="clearCart()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 font-medium text-xs transition">
+        Clear All Saved Items
+      </button>
+    </div>
+  </aside>
+
+  <!-- Application Logic -->
+  <script>
+    // Asset Type specific dropdown options
+    const STYLE_OPTIONS = {
+      footage: [
+        "Real Footage (4K)",
+        "Drone / Aerial 4K",
+        "Cinematic Slow-Mo 60fps",
+        "Time-lapse / Hyperlapse",
+        "Vertical Video (9:16)",
+        "3D Motion / CGI Simulation",
+        "Green Screen / Alpha Matte"
+      ],
+      raster: [
+        "Commercial Photography",
+        "Authentic Lifestyle & Candid",
+        "Studio Lighting / Isolated",
+        "Flat Lay & Still Life",
+        "Macro & Extreme Detail",
+        "Editorial Street Photography",
+        "Architectural & Interior"
+      ],
+      vector: [
+        "Flat Vector Design",
+        "3D Isometric Illustration",
+        "Line Art & Minimalist Outline",
+        "Infographic & UI Elements Kit",
+        "Badge & Logo Concept",
+        "Character Illustration Set",
+        "Seamless Pattern Background"
+      ],
+      png: [
+        "Isolated on Transparent",
+        "3D High Gloss Render",
+        "Cutout Person / Hand Gesture",
+        "Splash / Smoke / Particle Effect",
+        "Glassmorphism UI Element",
+        "Badge / Award Sticker Cutout",
+        "Fresh Food / Botanical Isolated"
+      ]
+    };
+
+    // Preloaded Brainstorm Data (matches screenshot exactly)
+    const BRAINSTORM_DATA = {
+      footage: {
+        "Trending Now": [
+          "Sustainable Energy 2026", "Mental Health Awareness", "Smart Urban Living",
+          "EV Charging Station", "Space Exploration", "Solid State Batteries", "Autonomous Drones"
+        ],
+        "Business": [
+          "Remote Team Meeting", "Digital Banking Interface", "Logistics & Delivery",
+          "Diverse Leadership", "Modern Co-working", "Fintech Trading Floor"
+        ],
+        "Lifestyle": [
+          "Telemedicine Consult", "Urban Gardening", "Vanlife Adventure",
+          "Senior Fitness", "Solo Traveler", "Cold Plunge Therapy"
+        ],
+        "Concepts": [
+          "Cyber Security", "Work Life Balance", "Green Economy",
+          "Global Networking", "Blockchain", "Quantum Computing"
+        ]
+      },
+      raster: {
+        "Trending Now": [
+          "Authentic Gen-Z Portraits", "Eco Friendly Packaging", "Smart Farming Drone",
+          "Solar Panel Rooftops", "Electric Vehicle Fleet", "Vertical Farming Greens"
+        ],
+        "Business": [
+          "Inclusive Team Brainstorm", "Female CEO Presentation", "Data Privacy Shield",
+          "Warehouse Automation", "Startup Pitch Deck Review", "Medical Research Lab"
+        ],
+        "Lifestyle": [
+          "Home Barista Pour Over", "Elderly Active Longevity", "Parent Working Remote",
+          "Minimalist Capsule Wardrobe", "Farm to Table Dining", "Outdoor Trail Running"
+        ],
+        "Concepts": [
+          "Neural Network Visualization", "Carbon Neutral Certification", "Trust and Security",
+          "Resilient Infrastructure", "Mind-Body Equilibrium", "Human-AI Collaboration"
+        ]
+      },
+      vector: {
+        "Trending Now": [
+          "Clean Energy Infographics", "Cyberpunk UI Badges", "Mental Health Mascot",
+          "Renewable Grid Icons", "Smart City Isometric Map", "AI Chatbot Avatars"
+        ],
+        "Business": [
+          "Fintech Dashboard UI Kit", "Company Organizational Chart", "SaaS Feature Icons",
+          "B2B Sales Pipeline Flow", "Digital Marketing Funnel", "Cybersecurity Shield Badges"
+        ],
+        "Lifestyle": [
+          "Yoga Poses Vector Set", "Healthy Nutrition Food Plate", "Travel Wanderlust Badges",
+          "Pet Care Doodle Collection", "Self-Care Rituals Flat Art", "Fitness Tracker UI Badges"
+        ],
+        "Concepts": [
+          "Cloud Computing Topology", "Big Data Analytics Charts", "ESG Sustainability Badges",
+          "Global Trade Flowcharts", "Cryptocurrency Token Icons", "Biotech DNA Schematics"
+        ]
+      },
+      png: {
+        "Trending Now": [
+          "3D Holographic AI Brain", "Isolated EV Charging Cable", "Fresh Hydroponic Lettuce",
+          "Transparent Water Splash", "Solar Panel Cell Cutout", "Floating Cryptocurrency Coin"
+        ],
+        "Business": [
+          "3D Graph Ascending Arrow", "Credit Card Chip Isolated", "Modern Briefcase Cutout",
+          "Golden Certified Stamp", "Transparent Glassmorphic Card", "Delivery Package Box"
+        ],
+        "Lifestyle": [
+          "Green Monstera Leaf Isolated", "Hand Pouring Coffee Splash", "Organic Avocado Slice",
+          "Reusable Glass Water Bottle", "Running Shoes Cutout", "Hand Holding Smartphone Blank"
+        ],
+        "Concepts": [
+          "Glowing Cyber Shield PNG", "Infinity Green Loop Symbol", "Floating Data Cubes 3D",
+          "Transparent Glass Sphere", "Dynamic Smoke Explosion", "Circuit Board Pattern Alpha"
+        ]
+      }
+    };
+
+    // Gap Analysis Dataset
+    const GAP_DATA = [
+      {
+        topic: "Autonomous EV Charging Robots in Underground Garages",
+        asset_type: "Footage",
+        demand: "Very High",
+        search_volume: "84,500 / mo",
+        supply: "Low",
+        saturation_pct: 14,
+        gap_score: 96,
+        niche: "Automotive & Smart Cities",
+        recommended_format: "4K 60fps / 9:16 Vertical"
+      },
+      {
+        topic: "Agrovoltaics - Crops Growing Under High-Tech Solar Canopies",
+        asset_type: "Raster",
+        demand: "High",
+        search_volume: "62,300 / mo",
+        supply: "Low",
+        saturation_pct: 18,
+        gap_score: 94,
+        niche: "ESG & Green Tech",
+        recommended_format: "50MP+ Commercial RAW"
+      },
+      {
+        topic: "Tele-Surgery Robotic Arms Controlled by Remote Doctor",
+        asset_type: "Footage",
+        demand: "Very High",
+        search_volume: "91,200 / mo",
+        supply: "Very Low",
+        saturation_pct: 11,
+        gap_score: 97,
+        niche: "Healthcare & MedTech",
+        recommended_format: "Cinematic 24fps / 4K Macro"
+      },
+      {
+        topic: "Isometric ESG Sustainability & Carbon Accounting Dashboard",
+        asset_type: "Vector",
+        demand: "High",
+        search_volume: "55,800 / mo",
+        supply: "Moderate",
+        saturation_pct: 28,
+        gap_score: 88,
+        niche: "Corporate SaaS & B2B",
+        recommended_format: "Editable EPS 10 + SVG"
+      },
+      {
+        topic: "3D Floating Glassmorphic Fintech Payment Icons (Alpha PNG)",
+        asset_type: "PNG",
+        demand: "High",
+        search_volume: "48,900 / mo",
+        supply: "Low",
+        saturation_pct: 22,
+        gap_score: 91,
+        niche: "Mobile Apps & Web Design",
+        recommended_format: "3000x3000px 300DPI Alpha"
+      },
+      {
+        topic: "Senior Citizens Using Brain-Training AI Tablets in Retirement Care",
+        asset_type: "Raster",
+        demand: "Very High",
+        search_volume: "73,400 / mo",
+        supply: "Low",
+        saturation_pct: 19,
+        gap_score: 93,
+        niche: "Silver Economy & Wellness",
+        recommended_format: "Authentic Natural Light Editorial"
+      },
+      {
+        topic: "Hydrogen Fuel Cell Commercial Truck Refueling Station",
+        asset_type: "Footage",
+        demand: "High",
+        search_volume: "51,200 / mo",
+        supply: "Very Low",
+        saturation_pct: 9,
+        gap_score: 95,
+        niche: "Clean Transport & Logistics",
+        recommended_format: "Drone Aerial 4K + Eye-level 60fps"
+      },
+      {
+        topic: "Minimalist Cyber Resilience & Zero-Trust Architecture Infographic",
+        asset_type: "Vector",
+        demand: "High",
+        search_volume: "44,100 / mo",
+        supply: "Low",
+        saturation_pct: 20,
+        gap_score: 90,
+        niche: "Enterprise Cybersecurity",
+        recommended_format: "Layered Vector AI / SVG"
+      },
+      {
+        topic: "Bioluminescent Algae Air Purifier for Modern Eco-Apartments",
+        asset_type: "Raster",
+        demand: "Moderate",
+        search_volume: "38,700 / mo",
+        supply: "Extremely Low",
+        saturation_pct: 6,
+        gap_score: 92,
+        niche: "Interior Architecture & ClimateTech",
+        recommended_format: "Moody Architectural Shot"
+      },
+      {
+        topic: "Isolated 3D Smart Battery Energy Storage Rack (BESS)",
+        asset_type: "PNG",
+        demand: "High",
+        search_volume: "42,000 / mo",
+        supply: "Low",
+        saturation_pct: 15,
+        gap_score: 93,
+        niche: "Renewable Utilities & Industry",
+        recommended_format: "Transparent PNG + Studio Light Matte"
+      }
+    ];
+
+    // App State
+    let currentAssetType = 'footage';
+    let currentResult = null;
+    let savedCart = JSON.parse(localStorage.getItem('stockscope_saved_cart') || '[]');
+
+    // Initialize application
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      setAssetType('footage');
+      renderBrainstormIdeas();
+      renderGapTable();
+      updateCartBadge();
+    });
+
+    // View Switcher: Discovery vs Gap Analysis
+    function switchMainView(view) {
+      const discView = document.getElementById('view-discovery');
+      const gapView = document.getElementById('view-gap');
+      const btnDisc = document.getElementById('nav-discovery');
+      const btnGap = document.getElementById('nav-gap');
+
+      if (view === 'discovery') {
+        discView.classList.remove('hidden');
+        gapView.classList.add('hidden');
+        btnDisc.className = "px-5 py-2 rounded-lg text-sm font-semibold transition bg-slate-800 text-white shadow-sm border border-slate-700/60 flex items-center gap-2";
+        btnGap.className = "px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-400 hover:text-slate-200 flex items-center gap-2";
+      } else {
+        discView.classList.add('hidden');
+        gapView.classList.remove('hidden');
+        gapView.classList.add('flex');
+        btnGap.className = "px-5 py-2 rounded-lg text-sm font-semibold transition bg-slate-800 text-white shadow-sm border border-slate-700/60 flex items-center gap-2";
+        btnDisc.className = "px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-400 hover:text-slate-200 flex items-center gap-2";
+      }
+      lucide.createIcons();
+    }
+
+    function resetViews() {
+      switchMainView('discovery');
+      document.getElementById('search-topic').value = '';
+      document.getElementById('result-panel').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Set Asset Type Tab (Footage, Raster, Vector, PNG)
+    function setAssetType(type) {
+      currentAssetType = type;
+      const types = ['footage', 'raster', 'vector', 'png'];
+      
+      types.forEach(t => {
+        const tab = document.getElementById(`tab-${t}`);
+        if (t === type) {
+          tab.className = "py-2.5 px-3 rounded-xl text-sm font-semibold transition text-center bg-blue-600 text-white shadow-lg shadow-blue-600/20";
+        } else {
+          tab.className = "py-2.5 px-3 rounded-xl text-sm font-medium transition text-center text-slate-400 hover:text-white hover:bg-slate-800/60";
+        }
+      });
+
+      // Update placeholders and labels
+      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      document.getElementById('search-topic').placeholder = `Search topic for ${typeLabel} (or leave empty)`;
+      document.getElementById('label-style').textContent = `${typeLabel} Style`;
+      document.getElementById('btn-discover-text').textContent = `Discover ${typeLabel}`;
+      document.getElementById('heading-brainstorm').textContent = `BRAINSTORMING IDEAS FOR ${typeLabel.toUpperCase()}:`;
+
+      // Update Style Dropdown Options
+      const styleSelect = document.getElementById('select-style');
+      styleSelect.innerHTML = '';
+      const opts = STYLE_OPTIONS[type] || STYLE_OPTIONS.footage;
+      opts.forEach(opt => {
+        const optionEl = document.createElement('option');
+        optionEl.value = opt;
+        optionEl.textContent = opt;
+        styleSelect.appendChild(optionEl);
+      });
+
+      renderBrainstormIdeas();
+    }
+
+    // Render Brainstorm Ideas Tags
+    function renderBrainstormIdeas() {
+      const container = document.getElementById('brainstorm-categories');
+      container.innerHTML = '';
+      const categories = BRAINSTORM_DATA[currentAssetType] || BRAINSTORM_DATA.footage;
+
+      for (const [catName, tags] of Object.entries(categories)) {
+        const row = document.createElement('div');
+        row.className = "flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-1";
+
+        const label = document.createElement('span');
+        label.className = "w-28 text-slate-400 font-medium shrink-0";
+        label.textContent = catName;
+
+        const tagList = document.createElement('div');
+        tagList.className = "flex flex-wrap gap-1.5 flex-1";
+
+        tags.forEach(tag => {
+          const btn = document.createElement('button');
+          btn.className = "tag-chip px-3 py-1 rounded-full text-xs text-slate-300 font-normal";
+          btn.textContent = tag;
+          btn.onclick = () => {
+            document.getElementById('search-topic').value = tag;
+            discoverTopic(tag);
+          };
+          tagList.appendChild(btn);
+        });
+
+        row.appendChild(label);
+        row.appendChild(tagList);
+        container.appendChild(row);
+      }
+    }
+
+    // Refresh Brainstorm Ideas (shuffles)
+    function refreshBrainstormIdeas() {
+      const categories = BRAINSTORM_DATA[currentAssetType];
+      for (const cat in categories) {
+        categories[cat].sort(() => Math.random() - 0.5);
+      }
+      renderBrainstormIdeas();
+      showToast("Brainstorm topics refreshed!", "success");
+    }
+
+    // Inspire Me button
+    function inspireMe() {
+      const categories = BRAINSTORM_DATA[currentAssetType];
+      const allTags = Object.values(categories).flat();
+      const randomTag = allTags[Math.floor(Math.random() * allTags.length)];
+      document.getElementById('search-topic').value = randomTag;
+      discoverTopic(randomTag);
+    }
+
+    function discoverCurrentTopic() {
+      const val = document.getElementById('search-topic').value.trim();
+      discoverTopic(val);
+    }
+
+    // Core Discovery Function
+    async function discoverTopic(topic) {
+      const btn = document.getElementById('btn-discover');
+      const originalText = document.getElementById('btn-discover-text').textContent;
+      
+      // Loading state
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Analyzing Market Data...</span>`;
+      lucide.createIcons();
+
+      const style = document.getElementById('select-style').value;
+      const subject = document.getElementById('select-subject').value;
+      const timeframe = document.getElementById('select-timeframe').value;
+
+      try {
+        // Try calling Python backend API if available
+        let data = null;
+        try {
+          const res = await fetch(`/api/analyze?topic=${encodeURIComponent(topic)}&type=${currentAssetType}&style=${encodeURIComponent(style)}&subject=${encodeURIComponent(subject)}&timeframe=${encodeURIComponent(timeframe)}`);
+          if (res.ok) {
+            data = await res.json();
+          }
+        } catch (e) {
+          // Backend not reachable; use built-in client-side engine!
+        }
+
+        if (!data) {
+          data = generateClientSideAnalysis(topic, currentAssetType, style, subject, timeframe);
+        }
+
+        currentResult = data;
+        displayResult(data);
+        showToast(`Analyzed: "${data.topic}"`, "info");
+      } catch (err) {
+        console.error(err);
+        showToast("Error analyzing topic.", "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i><span id="btn-discover-text">${originalText}</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    // Client-side Heuristic Analysis Engine (runs 100% offline or on GitHub Pages)
+    function generateClientSideAnalysis(topic, assetType, style, subject, timeframe) {
+      const cleanTopic = topic ? topic.trim() : "Sustainable Energy 2026";
+      let seed = 0;
+      for (let i = 0; i < cleanTopic.length; i++) seed += cleanTopic.charCodeAt(i);
+      
+      const gapScore = 86 + (seed % 12);
+      const searchVol = (40000 + (seed * 110) % 55000).toLocaleString();
+      const saturation = 10 + (seed % 16);
+
+      const typeLabel = assetType.charAt(0).toUpperCase() + assetType.slice(1);
+      const title = `Commercial ${typeLabel} of ${cleanTopic} in Contemporary Professional Setting`;
+
+      // 48 Curated Keywords
+      const baseKeywords = [
+        "commercial", "high resolution", "professional", "concept", "innovation",
+        "modern", "contemporary", "technology", "clean", "sustainable", "future",
+        "industry", "corporate", "digital", "strategy", "creative", "inspiration",
+        "workplace", "lifestyle", "growth", "progress", "smart", "network",
+        "leadership", "solution", "urban", "global", "development", "efficiency"
+      ];
+      const topicWords = cleanTopic.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const assetKeywords = assetType === 'footage' ? ["4k footage", "slow motion", "b-roll", "cinematic", "ultra hd"] :
+                            assetType === 'raster' ? ["stock photo", "studio lighting", "authentic portrait", "copy space"] :
+                            assetType === 'vector' ? ["vector illustration", "flat design", "editable eps", "isometric"] :
+                            ["isolated png", "transparent background", "alpha cutout", "3d render"];
+
+      const uniqueKw = Array.from(new Set([...topicWords, ...baseKeywords, ...assetKeywords, style.toLowerCase(), subject.toLowerCase()]));
+      while (uniqueKw.length < 48) {
+        uniqueKw.push(`tag_${uniqueKw.length + 1}`);
+      }
+
+      return {
+        topic: cleanTopic,
+        asset_type: typeLabel,
+        style: style,
+        subject_mode: subject,
+        timeframe: timeframe,
+        metrics: {
+          gap_score: gapScore,
+          search_volume: `${searchVol} / mo`,
+          saturation: `${saturation}% (Low)`,
+          tier: gapScore > 90 ? 'Tier S' : 'Tier A',
+        },
+        metadata: {
+          title: title,
+          keywords: uniqueKw.slice(0, 48),
+          keywords_string: uniqueKw.slice(0, 48).join(', ')
+        },
+        ai_prompts: {
+          image_prompt: `High-end commercial ${assetType} of ${cleanTopic}, ${style}, ${subject}, natural authentic studio lighting, clean minimal backdrop, photorealistic 8k, rule of thirds, award winning stock composition, no watermarks, professional color grade --ar 16:9 --v 6.1`,
+          video_prompt: `Cinematic 4K 60fps slow tracking shot of ${cleanTopic}, ${subject}, smooth robotic gimbal camera movement, modern corporate aesthetic, shallow depth of field, sharp focus, hyperrealistic details, RED camera ProRes 422 HQ.`
+        },
+        buyer_insights: [
+          { industry: "Tech Startups & B2B SaaS", share: "36%", intent: "Hero Banners, Product Landing Pages & Pitch Decks" },
+          { industry: "Corporate & Financial Brands", share: "28%", intent: "Annual Reports, ESG Disclosures & Corporate Video" },
+          { industry: "Digital Agencies & Social Ads", share: "22%", intent: "High-CTR Social Media Ads & YouTube Thumbnails" },
+          { industry: "Publishers & News Outlets", share: "14%", intent: "Editorial Tech Articles & Educational Content" }
+        ],
+        shot_list: [
+          { angle: "Wide Establishing View", desc: `Captures the full scale of ${cleanTopic} with contextual environment and negative copy space.` },
+          { angle: "Medium Interaction Angle", desc: `Focuses on genuine hands-on human interaction, expressions, and authentic body language.` },
+          { angle: "Detail Macro Cutaway", desc: `Close-up shot of key elements, device screens, or textures, ideal for editorial b-roll cutaways.` },
+          { angle: "Isolated Subject Composition", desc: `Placed on modern clean neutral backdrop, versatile for overlay graphics and client branding.` }
+        ]
+      };
+    }
+
+    // Display Results in UI
+    function displayResult(data) {
+      const panel = document.getElementById('result-panel');
+      panel.classList.remove('hidden');
+
+      document.getElementById('res-badge-type').textContent = `${data.asset_type} Trend Analysis`;
+      document.getElementById('res-topic').textContent = data.topic;
+      document.getElementById('res-gap-score').textContent = data.metrics.gap_score;
+      document.getElementById('res-search-volume').textContent = data.metrics.search_volume;
+      document.getElementById('res-saturation').textContent = data.metrics.saturation;
+      document.getElementById('res-tier').textContent = data.metrics.tier;
+
+      document.getElementById('res-title').textContent = data.metadata.title;
+      document.getElementById('res-tag-count').textContent = `${data.metadata.keywords.length} Keywords`;
+
+      // Keywords Render
+      const kwBox = document.getElementById('res-keywords-box');
+      kwBox.innerHTML = '';
+      data.metadata.keywords.forEach(kw => {
+        const span = document.createElement('span');
+        span.className = "px-2.5 py-1 rounded-md bg-slate-800 hover:bg-blue-600/30 hover:border-blue-500 border border-slate-700 text-xs text-slate-300 hover:text-white cursor-pointer transition select-all";
+        span.textContent = kw;
+        span.title = "Click to copy this keyword";
+        span.onclick = () => {
+          navigator.clipboard.writeText(kw);
+          showToast(`Copied keyword: "${kw}"`, "success");
+        };
+        kwBox.appendChild(span);
+      });
+
+      // AI Prompts
+      document.getElementById('res-prompt-img').textContent = data.ai_prompts.image_prompt;
+      document.getElementById('res-prompt-vid').textContent = data.ai_prompts.video_prompt;
+
+      // Buyer Insights
+      const buyerList = document.getElementById('res-buyer-list');
+      buyerList.innerHTML = '';
+      data.buyer_insights.forEach(b => {
+        const item = document.createElement('div');
+        item.className = "p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between";
+        item.innerHTML = `
+          <div>
+            <span class="text-xs font-semibold text-slate-200 block">${b.industry}</span>
+            <span class="text-[11px] text-slate-400">${b.intent}</span>
+          </div>
+          <span class="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded-full">${b.share}</span>
+        `;
+        buyerList.appendChild(item);
+      });
+
+      // Shot List
+      const shotList = document.getElementById('res-shot-list');
+      shotList.innerHTML = '';
+      data.shot_list.forEach(s => {
+        const item = document.createElement('div');
+        item.className = "p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80";
+        item.innerHTML = `
+          <span class="text-xs font-semibold text-amber-300 block mb-0.5">${s.angle}</span>
+          <p class="text-[11px] text-slate-300">${s.desc}</p>
+        `;
+        shotList.appendChild(item);
+      });
+
+      lucide.createIcons();
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Render Gap Analysis Table
+    function renderGapTable() {
+      const tbody = document.getElementById('gap-table-body');
+      tbody.innerHTML = '';
+      const filter = document.getElementById('gap-filter-type').value;
+
+      const filtered = filter === 'all' ? GAP_DATA : GAP_DATA.filter(d => d.asset_type.toLowerCase() === filter.toLowerCase());
+
+      filtered.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition group";
+
+        const badgeColor = row.asset_type === 'Footage' ? 'bg-blue-900/40 text-blue-300 border-blue-600/30' :
+                           row.asset_type === 'Raster' ? 'bg-emerald-900/40 text-emerald-300 border-emerald-600/30' :
+                           row.asset_type === 'Vector' ? 'bg-purple-900/40 text-purple-300 border-purple-600/30' :
+                           'bg-amber-900/40 text-amber-300 border-amber-600/30';
+
+        tr.innerHTML = `
+          <td class="py-3.5 px-3.5 font-medium text-slate-200">
+            <span class="block text-xs font-semibold text-white group-hover:text-blue-400 transition">${row.topic}</span>
+            <span class="text-[10px] text-slate-500">${row.recommended_format}</span>
+          </td>
+          <td class="py-3.5 px-3">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeColor}">
+              ${row.asset_type}
+            </span>
+          </td>
+          <td class="py-3.5 px-3">
+            <span class="font-semibold text-slate-200">${row.demand}</span>
+            <span class="block text-[10px] text-slate-400">${row.search_volume}</span>
+          </td>
+          <td class="py-3.5 px-3">
+            <span class="text-emerald-400 font-semibold">${row.supply}</span>
+            <span class="block text-[10px] text-slate-500">${row.saturation_pct}% saturated</span>
+          </td>
+          <td class="py-3.5 px-3 text-center">
+            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 font-extrabold text-xs">
+              ${row.gap_score}
+            </span>
+          </td>
+          <td class="py-3.5 px-3 text-slate-300 font-medium">
+            ${row.niche}
+          </td>
+          <td class="py-3.5 px-3.5 text-right">
+            <button onclick="inspectGapRow('${encodeURIComponent(row.topic)}', '${row.asset_type.toLowerCase()}')" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[11px] transition inline-flex items-center gap-1 shadow-sm">
+              <i data-lucide="sparkles" class="w-3 h-3"></i>
+              Discover
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      lucide.createIcons();
+    }
+
+    function inspectGapRow(topicEncoded, type) {
+      const topic = decodeURIComponent(topicEncoded);
+      switchMainView('discovery');
+      setAssetType(type);
+      document.getElementById('search-topic').value = topic;
+      discoverTopic(topic);
+    }
+
+    // Clipboard & Copy Utilities
+    function copyElementText(elementId, successMsg) {
+      const text = document.getElementById(elementId).textContent;
+      navigator.clipboard.writeText(text);
+      showToast(successMsg, "success");
+    }
+
+    function copyAllKeywords() {
+      if (!currentResult) return;
+      navigator.clipboard.writeText(currentResult.metadata.keywords_string);
+      showToast("All keywords copied as comma-separated list!", "success");
+    }
+
+    function shareApp() {
+      if (navigator.share) {
+        navigator.share({
+          title: 'StockScope AI - Microstock Trend Tool',
+          text: 'Find high-demand, low-competition microstock niches and generate AI keywords & prompts.',
+          url: window.location.href
+        }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        showToast("Link copied to clipboard!", "success");
+      }
+    }
+
+    // Cart / Collection Management
+    function toggleCartDrawer() {
+      const drawer = document.getElementById('cart-drawer');
+      const backdrop = document.getElementById('cart-drawer-backdrop');
+      const isClosed = drawer.classList.contains('translate-x-full');
+
+      if (isClosed) {
+        drawer.classList.remove('translate-x-full');
+        backdrop.classList.remove('hidden');
+        renderCartItems();
+      } else {
+        drawer.classList.add('translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function saveCurrentResultToCart() {
+      if (!currentResult) return;
+      // check if exists
+      const exists = savedCart.find(i => i.topic === currentResult.topic && i.asset_type === currentResult.asset_type);
+      if (exists) {
+        showToast("Item already saved in collection!", "info");
+        return;
+      }
+      savedCart.push({
+        id: Date.now().toString(),
+        topic: currentResult.topic,
+        asset_type: currentResult.asset_type,
+        gap_score: currentResult.metrics.gap_score,
+        title: currentResult.metadata.title,
+        keywords: currentResult.metadata.keywords_string,
+        prompt: currentResult.ai_prompts.image_prompt,
+        saved_at: new Date().toLocaleDateString()
+      });
+      localStorage.setItem('stockscope_saved_cart', JSON.stringify(savedCart));
+      updateCartBadge();
+      showToast("Saved to collections cart!", "success");
+    }
+
+    function updateCartBadge() {
+      const count = savedCart.length;
+      document.getElementById('cart-badge').textContent = count;
+      document.getElementById('drawer-count-badge').textContent = `${count} items`;
+    }
+
+    function renderCartItems() {
+      const container = document.getElementById('cart-items-container');
+      container.innerHTML = '';
+
+      if (savedCart.length === 0) {
+        container.innerHTML = `
+          <div class="py-12 flex flex-col items-center justify-center text-center text-slate-500">
+            <i data-lucide="inbox" class="w-10 h-10 mb-2 opacity-40"></i>
+            <p class="text-xs">No saved items yet.</p>
+            <p class="text-[11px] text-slate-600 mt-1">Discover trends and click "Save to Collection".</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      savedCart.forEach((item, index) => {
+        const el = document.createElement('div');
+        el.className = "p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 flex flex-col gap-1.5 relative group";
+        el.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">${item.asset_type}</span>
+            <button onclick="removeCartItem('${item.id}')" class="text-slate-500 hover:text-rose-400 transition" title="Delete">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <h4 class="text-xs font-bold text-white">${item.topic}</h4>
+          <p class="text-[10px] text-slate-400 line-clamp-1">${item.title}</p>
+          <div class="flex items-center justify-between pt-1 border-t border-slate-700/50 mt-1">
+            <span class="text-[10px] text-emerald-400 font-bold">Gap Score: ${item.gap_score}/100</span>
+            <button onclick="copyCartItemKeywords(${index})" class="text-[10px] text-slate-300 hover:text-white font-medium flex items-center gap-1">
+              <i data-lucide="copy" class="w-3 h-3"></i> Copy Tags
+            </button>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+      lucide.createIcons();
+    }
+
+    function removeCartItem(id) {
+      savedCart = savedCart.filter(item => item.id !== id);
+      localStorage.setItem('stockscope_saved_cart', JSON.stringify(savedCart));
+      updateCartBadge();
+      renderCartItems();
+      showToast("Item removed", "info");
+    }
+
+    function copyCartItemKeywords(index) {
+      const item = savedCart[index];
+      if (item && item.keywords) {
+        navigator.clipboard.writeText(item.keywords);
+        showToast("Keywords copied!", "success");
+      }
+    }
+
+    function clearCart() {
+      if (!confirm("Are you sure you want to clear all saved items?")) return;
+      savedCart = [];
+      localStorage.setItem('stockscope_saved_cart', JSON.stringify(savedCart));
+      updateCartBadge();
+      renderCartItems();
+      showToast("Collection cleared", "info");
+    }
+
+    // CSV Exporters
+    function exportCurrentResultCSV() {
+      if (!currentResult) return;
+      const headers = ["Title", "Keywords", "Category", "AssetType", "GapScore"];
+      const row = [
+        `"${currentResult.metadata.title.replace(/"/g, '""')}"`,
+        `"${currentResult.metadata.keywords_string.replace(/"/g, '""')}"`,
+        `"${currentResult.topic.replace(/"/g, '""')}"`,
+        `"${currentResult.asset_type}"`,
+        `"${currentResult.metrics.gap_score}"`
+      ];
+      const csvContent = headers.join(",") + "\n" + row.join(",");
+      downloadCSVFile(csvContent, `StockScope_${currentResult.topic.replace(/\s+/g, '_')}.csv`);
+    }
+
+    function exportAllCartCSV() {
+      if (savedCart.length === 0) {
+        showToast("No items in cart to export!", "error");
+        return;
+      }
+      const headers = ["Filename", "Title", "Keywords", "Category", "AssetType", "Prompt"];
+      const rows = savedCart.map((item, idx) => [
+        `"stock_${idx + 1}"`,
+        `"${item.title.replace(/"/g, '""')}"`,
+        `"${item.keywords.replace(/"/g, '""')}"`,
+        `"${item.topic.replace(/"/g, '""')}"`,
+        `"${item.asset_type}"`,
+        `"${(item.prompt || '').replace(/"/g, '""')}"`
+      ]);
+      const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      downloadCSVFile(csvContent, `StockScope_Batch_Export_${Date.now()}.csv`);
+    }
+
+    function exportGapTableCSV() {
+      const headers = ["Topic", "AssetType", "Demand", "SearchVolume", "Supply", "SaturationPct", "GapScore", "Niche", "RecommendedFormat"];
+      const rows = GAP_DATA.map(d => [
+        `"${d.topic.replace(/"/g, '""')}"`,
+        `"${d.asset_type}"`,
+        `"${d.demand}"`,
+        `"${d.search_volume}"`,
+        `"${d.supply}"`,
+        `"${d.saturation_pct}%"`,
+        `"${d.gap_score}"`,
+        `"${d.niche.replace(/"/g, '""')}"`,
+        `"${d.recommended_format.replace(/"/g, '""')}"`
+      ]);
+      const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      downloadCSVFile(csvContent, `StockScope_Gap_Analysis_${Date.now()}.csv`);
+    }
+
+    function downloadCSVFile(content, filename) {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Downloaded: ${filename}`, "success");
+    }
+
+    // Toast Notification System
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-emerald-950 border-emerald-500/50 text-emerald-200',
+        error: 'bg-rose-950 border-rose-500/50 text-rose-200',
+        info: 'bg-slate-900 border-blue-500/50 text-slate-100'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl border shadow-2xl text-xs font-semibold flex items-center gap-2 transform transition-all duration-300 opacity-0 translate-y-2 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <span>${message}</span>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
